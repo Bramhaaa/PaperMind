@@ -5,11 +5,12 @@ WORKDIR /app
 # Install basic diagnostic tools and compile dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
+    ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 # Install python dependencies
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir setuptools wheel && pip install --no-cache-dir --no-build-isolation -r requirements.txt
 
 # Copy backend codebase
 COPY . .
