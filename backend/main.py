@@ -274,7 +274,8 @@ async def upload_source(
 def chat_query(request: ChatQueryRequest):
     try:
         # Establish connection for SSE stream context
-        conn = pool.connection()
+        ctx = pool.connection()
+        conn = ctx.__enter__()
         
         # 1. Fetch conversation history (last 3 turns)
         with conn.cursor() as cur:
@@ -397,7 +398,7 @@ def chat_query(request: ChatQueryRequest):
             except Exception as e:
                 yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
             finally:
-                conn.close()
+                ctx.__exit__(None, None, None)
 
         if request.stream:
             return StreamingResponse(sse_generator(), media_type="text/event-stream")
@@ -414,13 +415,25 @@ def chat_query(request: ChatQueryRequest):
                         "INSERT INTO conversation_turns (notebook_id, role, content) VALUES (%s, 'assistant', %s);",
                         (request.notebook_id, full_text)
                     )
-            conn.close()
+            ctx.__exit__(None, None, None)
             return {
                 "response": full_text,
                 "citations": citations,
                 "source_type_used": source_type_used
             }
+    except HTTPException as e:
+        try:
+            ctx.__exit__(None, None, None)
+        except Exception:
+            pass
+        raise e
     except Exception as e:
+        import traceback
+        traceback.print_exc()
+        try:
+            ctx.__exit__(None, None, None)
+        except Exception:
+            pass
         raise HTTPException(status_code=500, detail=str(e))
 
 

@@ -59,6 +59,8 @@ class OllamaProvider(LLMProvider):
     """Local Ollama client utilizing native HTTP requests."""
     def __init__(self, model_name: str, base_url: str = None):
         self.model_name = model_name
+        if base_url:
+            base_url = base_url.replace("localhost", "host.docker.internal").replace("127.0.0.1", "host.docker.internal")
         self.base_url = base_url or "http://host.docker.internal:11434"
 
     def generate(self, messages: List[Dict[str, str]]) -> str:
