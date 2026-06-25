@@ -114,6 +114,14 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     });
 
     on<SubmitMessageEvent>((event, emit) async {
+      // 1. Immediately add the user's query to history
+      _history.add(ChatTurn(
+        role: "user",
+        content: event.message,
+        citations: const [],
+      ));
+
+      // 2. Emit loading state with the updated history (so user message shows first)
       emit(ChatResponseLoading(List.unmodifiable(_history)));
 
       String accumulatedResponse = "";
@@ -174,12 +182,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
         return;
       }
 
-      // Add user prompt and assistant reply to our in-memory history turns
-      _history.add(ChatTurn(
-        role: "user",
-        content: event.message,
-        citations: const [],
-      ));
+      // Add assistant reply to our in-memory history turns
       _history.add(ChatTurn(
         role: "assistant",
         content: accumulatedResponse,

@@ -191,7 +191,7 @@ class ArtifactRepositoryImpl implements IArtifactRepository {
       notebookId: notebookId,
       type: data["artifact_type"] as String,
       sourceHash: data["source_hash"] as String? ?? "",
-      payload: data["payload"] as Map<String, dynamic>,
+      payload: _parsePayload(data["payload"]),
       createdAt: DateTime.parse(data["created_at"] as String),
     );
   }
@@ -213,9 +213,30 @@ class ArtifactRepositoryImpl implements IArtifactRepository {
         notebookId: notebookId,
         type: item["artifact_type"] as String,
         sourceHash: item["source_hash"] as String? ?? "",
-        payload: item["payload"] as Map<String, dynamic>,
+        payload: _parsePayload(item["payload"]),
         createdAt: DateTime.parse(item["created_at"] as String),
       );
     }).toList();
+  }
+
+  Map<String, dynamic> _parsePayload(dynamic rawPayload) {
+    if (rawPayload == null) {
+      return {};
+    }
+    if (rawPayload is Map<String, dynamic>) {
+      return rawPayload;
+    }
+    if (rawPayload is Map) {
+      return Map<String, dynamic>.from(rawPayload);
+    }
+    if (rawPayload is String) {
+      try {
+        final decoded = jsonDecode(rawPayload);
+        return _parsePayload(decoded);
+      } catch (_) {
+        return {"raw_text": rawPayload};
+      }
+    }
+    return {};
   }
 }

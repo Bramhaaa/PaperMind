@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:file_picker/file_picker.dart';
@@ -755,18 +756,19 @@ class _HomePageState extends State<HomePage> {
                   padding: const EdgeInsets.all(24),
                   itemCount: turns.length + (currentTokenStream != null ? 1 : 0) + (isQueryLoading ? 1 : 0),
                   itemBuilder: (context, index) {
-                    if (isQueryLoading && index == 0) {
-                      return _buildQueryLoaderBubble();
-                    }
-                    
-                    if (index == turns.length && currentTokenStream != null) {
-                      // Rendering current streaming token stream bubble
-                      return _buildChatBubble(
-                        role: "assistant",
-                        content: currentTokenStream,
-                        citations: const [],
-                        isStreaming: true,
-                      );
+                    if (index == turns.length) {
+                      if (currentTokenStream != null) {
+                        // Rendering current streaming token stream bubble
+                        return _buildChatBubble(
+                          role: "assistant",
+                          content: currentTokenStream,
+                          citations: const [],
+                          isStreaming: true,
+                        );
+                      }
+                      if (isQueryLoading) {
+                        return _buildQueryLoaderBubble();
+                      }
                     }
                     
                     final turn = turns[index];
@@ -1397,25 +1399,75 @@ class _HomePageState extends State<HomePage> {
   Widget _renderArtifactPayload(Artifact artifact) {
     final payload = artifact.payload;
     if (artifact.type == "flashcards") {
-      final list = payload["cards"] as List?;
-      if (list == null || list.isEmpty) {
+      final list = _safeParseList(payload["cards"], payload is List ? payload : null);
+      if (list.isEmpty) {
         return const Center(child: Text("No card records in payload.", style: TextStyle(color: Colors.white)));
       }
       return _FlashcardDeckView(cards: list);
     } else if (artifact.type == "timeline") {
-      final list = payload["timeline"] as List?;
-      if (list == null || list.isEmpty) {
+      final list = _safeParseList(payload["timeline"], payload is List ? payload : null);
+      if (list.isEmpty) {
         return const Center(child: Text("No timeline records in payload.", style: TextStyle(color: Colors.white)));
       }
       return _TimelineListView(timelineItems: list);
     } else if (artifact.type == "summary") {
-      final summary = payload["summary"] as Map<String, dynamic>?;
-      if (summary == null) {
-        return const Center(child: Text("No summary details in payload.", style: TextStyle(color: Colors.white)));
+      Map<String, dynamic> summaryMap;
+      final rawSummary = payload["summary"];
+      if (rawSummary is Map<String, dynamic>) {
+        summaryMap = rawSummary;
+      } else if (rawSummary is Map) {
+        summaryMap = Map<String, dynamic>.from(rawSummary);
+      } else if (rawSummary is String) {
+        try {
+          final decoded = jsonDecode(rawSummary);
+          if (decoded is Map) {
+            summaryMap = Map<String, dynamic>.from(decoded);
+          } else {
+            summaryMap = {
+              "tldr": rawSummary,
+              "key_findings": payload["key_findings"] ?? [],
+              "open_questions": payload["open_questions"] ?? [],
+            };
+          }
+        } catch (_) {
+          summaryMap = {
+            "tldr": rawSummary,
+            "key_findings": payload["key_findings"] ?? [],
+            "open_questions": payload["open_questions"] ?? [],
+          };
+        }
+      } else {
+        if (payload.containsKey("tldr") || payload.containsKey("key_findings")) {
+          summaryMap = payload;
+        } else {
+          summaryMap = {
+            "tldr": "No summary text provided.",
+            "key_findings": [],
+            "open_questions": [],
+          };
+        }
       }
-      return _SummaryDetailsView(summary: summary);
+      return _SummaryDetailsView(summary: summaryMap);
     }
     return const Center(child: Text("Unsupported payload format."));
+  }
+
+  List<dynamic> _safeParseList(dynamic rawList, [dynamic fallback]) {
+    if (rawList is List) {
+      return rawList;
+    }
+    if (rawList is String) {
+      try {
+        final decoded = jsonDecode(rawList);
+        if (decoded is List) {
+          return decoded;
+        }
+      } catch (_) {}
+    }
+    if (fallback is List) {
+      return fallback;
+    }
+    return [];
   }
 }
 
@@ -1483,7 +1535,10 @@ class _FlashcardDeckViewState extends State<_FlashcardDeckView> with SingleTicke
 
   @override
   Widget build(BuildContext context) {
-    final card = widget.cards[_cardIndex] as Map<String, dynamic>;
+    final rawCard = widget.cards[_cardIndex];
+    final Map<String, dynamic> card = rawCard is Map<String, dynamic>
+        ? rawCard
+        : (rawCard is Map ? Map<String, dynamic>.from(rawCard) : {});
     final frontText = card["front"] as String? ?? "Empty Front";
     final backText = card["back"] as String? ?? "Empty Back";
     final difficulty = card["difficulty"] as String? ?? "medium";
@@ -1678,7 +1733,10 @@ class _TimelineListView extends StatelessWidget {
       padding: const EdgeInsets.all(20),
       itemCount: timelineItems.length,
       itemBuilder: (context, index) {
-        final item = timelineItems[index] as Map<String, dynamic>;
+        final rawItem = timelineItems[index];
+        final Map<String, dynamic> item = rawItem is Map<String, dynamic>
+            ? rawItem
+            : (rawItem is Map ? Map<String, dynamic>.from(rawItem) : {});
         final date = item["date_or_period"] as String? ?? "Unknown Date";
         final desc = item["event_description"] as String? ?? "";
         final sourceChunkIds = item["source_chunk_ids"] as List? ?? [];
@@ -1768,9 +1826,11 @@ class _SummaryDetailsView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tldr = summary["tldr"] as String? ?? "No TLDR text.";
-    final findings = summary["key_findings"] as List? ?? [];
-    final questions = summary["open_questions"] as List? ?? [];
+    final tldr = summary["tldr"]?.toString() ?? "No TLDR text.";
+    final rawFindings = summary["key_findings"];
+    final findings = rawFindings is List ? rawFindings : [];
+    final rawQuestions = summary["open_questions"];
+    final questions = rawQuestions is List ? rawQuestions : [];
     
     return ListView(
       padding: const EdgeInsets.all(20),

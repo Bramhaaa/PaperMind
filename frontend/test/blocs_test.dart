@@ -136,9 +136,21 @@ void main() {
         activeSourceIds: ['src-1'],
       )),
       expect: () => [
-        const ChatResponseLoading([]),
-        const ChatResponseStreaming(currentResponse: 'Hello', history: []),
-        const ChatResponseStreaming(currentResponse: 'Hello world!', history: []),
+        const ChatResponseLoading([
+          ChatTurn(role: 'user', content: 'Explain relativity', citations: []),
+        ]),
+        const ChatResponseStreaming(
+          currentResponse: 'Hello',
+          history: [
+            ChatTurn(role: 'user', content: 'Explain relativity', citations: []),
+          ],
+        ),
+        const ChatResponseStreaming(
+          currentResponse: 'Hello world!',
+          history: [
+            ChatTurn(role: 'user', content: 'Explain relativity', citations: []),
+          ],
+        ),
         const ChatResponseSuccess(
           history: [
             ChatTurn(role: 'user', content: 'Explain relativity', citations: []),
