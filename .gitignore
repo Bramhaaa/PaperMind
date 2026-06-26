@@ -16,3 +16,7 @@ ENV/
 .DS_Store?
 ehthumbs.db
 Thumbs.db
+
+# Logs
+*.log
+

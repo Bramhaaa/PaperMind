@@ -165,6 +165,33 @@ void main() {
         ),
       ],
     );
+
+    blocTest<ChatBloc, ChatState>(
+      'emits only ChatResponseSuccess with a local guidance response when activeSourceIds is empty and web fallback is disabled',
+      build: () => ChatBloc(chatRepository: mockChatRepository),
+      act: (bloc) => bloc.add(const SubmitMessageEvent(
+        notebookId: 'nb-1',
+        message: 'Hello',
+        activeSourceIds: [],
+        enableWebFallback: false,
+      )),
+      expect: () => [
+        const ChatResponseSuccess(
+          history: [
+            ChatTurn(role: 'user', content: 'Hello', citations: []),
+            ChatTurn(
+              role: 'assistant',
+              content: "I am a local AI assistant designed for research purposes. "
+                  "Please select or upload source files in the sidebar so I can answer questions based on them. "
+                  "Alternatively, you can enable the Web Search Fallback in settings to search the open web.",
+              citations: [],
+            )
+          ],
+          citations: [],
+          sourceTypeUsed: 'local_documents',
+        ),
+      ],
+    );
   });
 
   group('ArtifactBloc Tests', () {

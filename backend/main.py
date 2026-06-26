@@ -27,6 +27,14 @@ class NotebookCreate(BaseModel):
     embedding_model: str # 'text-embedding-3-small', 'nomic-embed-text', 'all-MiniLM-L6-v2'
     similarity_threshold: Optional[float] = 0.70
 
+class NotebookUpdate(BaseModel):
+    name: str
+    llm_provider: str
+    model_name: str
+    api_key: Optional[str] = None
+    base_url: Optional[str] = None
+    similarity_threshold: Optional[float] = 0.70
+
 class ChatQueryRequest(BaseModel):
     notebook_id: str
     message: str
@@ -212,6 +220,44 @@ def create_notebook(data: NotebookCreate):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.put("/api/v1/notebooks/{id}")
+def update_notebook(id: str, data: NotebookUpdate):
+    try:
+        encrypted_key = encrypt_key(data.api_key)
+        with get_db_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE notebooks 
+                    SET name = %s, llm_provider = %s, model_name = %s, api_key_encrypted = %s, base_url = %s, similarity_threshold = %s
+                    WHERE id = %s
+                    RETURNING id, name, llm_provider, model_name, embedding_model, similarity_threshold;
+                    """,
+                    (
+                        data.name,
+                        data.llm_provider,
+                        data.model_name,
+                        encrypted_key,
+                        data.base_url,
+                        data.similarity_threshold,
+                        id
+                    )
+                )
+                row = cur.fetchone()
+                if not row:
+                    raise HTTPException(status_code=404, detail="Notebook not found")
+                return {
+                    "notebook_id": str(row[0]),
+                    "name": row[1],
+                    "llm_provider": row[2],
+                    "model_name": row[3],
+                    "embedding_model": row[4],
+                    "similarity_threshold": row[5]
+                }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.post("/api/v1/sources/upload")
 async def upload_source(
     background_tasks: BackgroundTasks,
@@ -321,7 +367,7 @@ def chat_query(request: ChatQueryRequest):
             # Format chunks with chunk ID reference for potential LLM mapping
             context_lines = []
             for c in chunks:
-                context_lines.append(f"[Chunk ID: {c['chunk_id']}]\n{c['content']}")
+                context_lines.append(c['content'])
             context_str = "\n\n".join(context_lines)
 
             # Build Citation payloads
@@ -435,6 +481,28 @@ def chat_query(request: ChatQueryRequest):
         except Exception:
             pass
         raise HTTPException(status_code=500, detail=str(e))
+
+
+def parse_json_defensively(val):
+    if isinstance(val, str):
+        stripped = val.strip()
+        if stripped.startswith("```json"):
+            stripped = stripped[7:]
+        if stripped.endswith("```"):
+            stripped = stripped[:-3]
+        stripped = stripped.strip()
+        try:
+            decoded = json.loads(stripped)
+            if isinstance(decoded, (dict, list)):
+                return parse_json_defensively(decoded)
+            return val
+        except Exception:
+            return val
+    elif isinstance(val, dict):
+        return {k: parse_json_defensively(v) for k, v in val.items()}
+    elif isinstance(val, list):
+        return [parse_json_defensively(i) for i in val]
+    return val
 
 
 @app.post("/api/v1/artifacts/generate")
@@ -603,6 +671,7 @@ def generate_artifact(request: ArtifactGenerateRequest):
         ]
         
         payload_result = llm.generate_structured(messages, schema)
+        payload_result = parse_json_defensively(payload_result)
 
         # Save to database
         artifact_id = str(uuid.uuid4())

@@ -71,8 +71,9 @@ class ProviderBloc extends Bloc<ProviderEvent, ProviderState> {
 
         // 2. Local-first check
         if (event.provider.toLowerCase() == 'ollama') {
-          // Ollama check. On native desktop, localhost is the correct endpoint for host Ollama.
-          final baseOllamaUrl = event.baseUrl ?? 'http://localhost:11434';
+          final baseOllamaUrl = (event.baseUrl == null || event.baseUrl!.trim().isEmpty)
+              ? 'http://localhost:11434'
+              : event.baseUrl!.trim();
           try {
             final ollamaUri = Uri.parse('$baseOllamaUrl/api/tags');
             final ollamaResp = await http.get(ollamaUri).timeout(const Duration(seconds: 3));

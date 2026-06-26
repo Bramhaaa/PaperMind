@@ -52,6 +52,47 @@ class NotebookRepositoryImpl implements INotebookRepository {
       similarityThreshold: (data["similarity_threshold"] as num).toDouble(),
     );
   }
+
+  @override
+  Future<Notebook> updateNotebook({
+    required String id,
+    required String name,
+    required String llmProvider,
+    required String modelName,
+    String? apiKey,
+    String? baseUrl,
+    double similarityThreshold = 0.70,
+  }) async {
+    final url = Uri.parse("${this.baseUrl}/api/v1/notebooks/$id");
+    final response = await client.put(
+      url,
+      headers: {"Content-Type": "application/json"},
+      body: jsonEncode({
+        "name": name,
+        "llm_provider": llmProvider,
+        "model_name": modelName,
+        "api_key": apiKey,
+        "base_url": baseUrl,
+        "similarity_threshold": similarityThreshold,
+      }),
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception("Failed to update notebook: ${response.body}");
+    }
+
+    final data = jsonDecode(response.body);
+    return Notebook(
+      id: data["notebook_id"] as String,
+      name: data["name"] as String,
+      llmProvider: data["llm_provider"] as String,
+      modelName: data["model_name"] as String,
+      apiKey: apiKey,
+      baseUrl: baseUrl,
+      embeddingModel: data["embedding_model"] as String,
+      similarityThreshold: (data["similarity_threshold"] as num).toDouble(),
+    );
+  }
 }
 
 class SourceRepositoryImpl implements ISourceRepository {

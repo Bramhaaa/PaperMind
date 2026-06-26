@@ -10,6 +10,16 @@ abstract class INotebookRepository {
     required String embeddingModel,
     double similarityThreshold = 0.70,
   });
+
+  Future<Notebook> updateNotebook({
+    required String id,
+    required String name,
+    required String llmProvider,
+    required String modelName,
+    String? apiKey,
+    String? baseUrl,
+    double similarityThreshold = 0.70,
+  });
 }
 
 abstract class ISourceRepository {

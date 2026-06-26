@@ -26,10 +26,17 @@ services:
     restart: always
     ports:
       - "8000:8000"
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/papermind
       - OLLAMA_BASE_URL=http://host.docker.internal:11434
       - FERNET_KEY=gK-U6l9Q-30Vl_S17sZ0g7vS-a3fUfGZgK-U6l9Q-30= # default key for development
+      - SERPER_API_KEY=${SERPER_API_KEY}
+      - TAVILY_API_KEY=${TAVILY_API_KEY}
+    volumes:
+      - hf_cache:/root/.cache
     depends_on:
       db:
         condition: service_healthy
@@ -38,3 +45,4 @@ services:
 
 volumes:
   postgres_data:
+  hf_cache:

@@ -68,7 +68,10 @@ class OllamaProvider(LLMProvider):
         payload = {
             "model": self.model_name,
             "messages": messages,
-            "stream": False
+            "stream": False,
+            "options": {
+                "temperature": 0.0
+            }
         }
         with httpx.Client(timeout=60.0) as client:
             response = client.post(url, json=payload)
@@ -80,7 +83,10 @@ class OllamaProvider(LLMProvider):
         payload = {
             "model": self.model_name,
             "messages": messages,
-            "stream": True
+            "stream": True,
+            "options": {
+                "temperature": 0.0
+            }
         }
         with httpx.stream("POST", url, json=payload, timeout=60.0) as r:
             r.raise_for_status()
@@ -107,7 +113,10 @@ class OllamaProvider(LLMProvider):
             "model": self.model_name,
             "messages": modified_messages,
             "stream": False,
-            "format": "json" # Forces JSON mode in Ollama
+            "format": "json", # Forces JSON mode in Ollama
+            "options": {
+                "temperature": 0.0
+            }
         }
         with httpx.Client(timeout=60.0) as client:
             response = client.post(url, json=payload)
@@ -346,11 +355,11 @@ class GeminiProvider(LLMProvider):
             buffer = ""
             for line in r.iter_lines():
                 if line:
-                    buffer += line.decode("utf-8")
+                    buffer += line
                     try:
                         # Stream endpoint outputs chunks wrapped in array-like structures
                         # Strip standard wrappers and yield text if parseable
-                        clean_buff = buffer.strip().lstrip("[").rstrip("]").strip()
+                        clean_buff = buffer.strip().lstrip("[,").rstrip("]").strip()
                         if clean_buff.endswith("}"):
                             data = json.loads(clean_buff)
                             yield data["candidates"][0]["content"]["parts"][0]["text"]

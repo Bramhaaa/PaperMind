@@ -141,3 +141,27 @@ Ensure flutter package dependencies are downloaded:
 cd frontend
 flutter test
 ```
+
+---
+
+## 🔒 Production Security Best Practices
+
+When publishing or deploying PaperMind to a production or shared environment, adhere to the following security guidelines:
+
+### 1. Generate a Unique Encryption Key
+PaperMind encrypts cloud LLM API keys (OpenAI, Anthropic, Gemini) using symmetric Fernet encryption before storing them in the PostgreSQL database.
+* **Never use the default `FERNET_KEY` value in production.**
+* Generate a new, secure base64-encoded key using Python:
+  ```bash
+  python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+  ```
+* Inject the output as the `FERNET_KEY` environment variable on your backend server.
+
+### 2. Restrict PostgreSQL Access & Override Passwords
+* Modify the default PostgreSQL username (`postgres`) and password (`postgres`) in both your `docker-compose.yml` environment configurations and your database URL connection string.
+* Ensure database ports (`5432`) are not exposed publicly, keeping them isolated within your private network or Docker network bridges.
+
+### 3. Protect Environment Variables (.env)
+* The `.env` file containing external search API keys (`SERPER_API_KEY`, `TAVILY_API_KEY`) is automatically excluded from git tracking via the root `.gitignore`.
+* Never hardcode keys directly into source code files, configuration manifests, or Dockerfiles.
+

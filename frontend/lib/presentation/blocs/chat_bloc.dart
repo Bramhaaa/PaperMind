@@ -121,6 +121,23 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
         citations: const [],
       ));
 
+      // Check if there are no sources selected and no web search enabled
+      if (event.activeSourceIds.isEmpty && !event.enableWebFallback) {
+        _history.add(const ChatTurn(
+          role: "assistant",
+          content: "I am a local AI assistant designed for research purposes. "
+              "Please select or upload source files in the sidebar so I can answer questions based on them. "
+              "Alternatively, you can enable the Web Search Fallback in settings to search the open web.",
+          citations: [],
+        ));
+        emit(ChatResponseSuccess(
+          history: List.unmodifiable(_history),
+          citations: const [],
+          sourceTypeUsed: "local_documents",
+        ));
+        return;
+      }
+
       // 2. Emit loading state with the updated history (so user message shows first)
       emit(ChatResponseLoading(List.unmodifiable(_history)));
 
@@ -177,10 +194,6 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
         emit(ChatError(errorMsg, List.unmodifiable(_history)));
       }
 
-      if (streamFailed) {
-        emit(ChatError(errorMsg, List.unmodifiable(_history)));
-        return;
-      }
 
       // Add assistant reply to our in-memory history turns
       _history.add(ChatTurn(

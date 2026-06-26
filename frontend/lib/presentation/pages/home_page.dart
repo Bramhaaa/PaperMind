@@ -49,40 +49,73 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _showNotebookConfigDialog() {
-    final nameController = TextEditingController(text: "My PaperMind Lab");
+    final bool isEditing = _currentNotebook != null;
+    final nameController = TextEditingController(
+      text: isEditing ? _currentNotebook!.name : "My PaperMind Lab",
+    );
     String selectedProvider = "Ollama";
-    final modelController = TextEditingController(text: "qwen2.5:0.5b");
-    final baseUrlController = TextEditingController(text: "http://localhost:11434");
-    final apiKeyController = TextEditingController();
-    String selectedEmbedding = "all-MiniLM-L6-v2";
-    double similarityThreshold = 0.70;
+    if (isEditing) {
+      final prov = _currentNotebook!.llmProvider.toLowerCase();
+      if (prov == "openai") {
+        selectedProvider = "OpenAI";
+      } else if (prov == "claude") {
+        selectedProvider = "Claude";
+      } else if (prov == "gemini") {
+        selectedProvider = "Gemini";
+      } else {
+        selectedProvider = "Ollama";
+      }
+    }
+    final modelController = TextEditingController(
+      text: isEditing ? _currentNotebook!.modelName : "qwen2.5:0.5b",
+    );
+    final baseUrlController = TextEditingController(
+      text: isEditing ? (_currentNotebook!.baseUrl ?? "") : "http://localhost:11434",
+    );
+    final apiKeyController = TextEditingController(
+      text: isEditing ? (_currentNotebook!.apiKey ?? "") : "",
+    );
+    String selectedEmbedding = isEditing ? _currentNotebook!.embeddingModel : "all-MiniLM-L6-v2";
+    double similarityThreshold = isEditing ? _currentNotebook!.similarityThreshold : 0.70;
 
     showDialog(
       context: context,
-      barrierDismissible: _currentNotebook != null,
+      barrierDismissible: isEditing,
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return BlocListener<ProviderBloc, ProviderState>(
               listener: (context, state) {
                 if (state is ProviderReady) {
-                  // Connection verified, proceed to create notebook database record
-                  widget.notebookRepository.createNotebook(
-                    name: nameController.text.trim(),
-                    llmProvider: selectedProvider.toLowerCase(),
-                    modelName: modelController.text.trim(),
-                    apiKey: selectedProvider == "Ollama" ? null : apiKeyController.text.trim(),
-                    baseUrl: selectedProvider == "Ollama" ? baseUrlController.text.trim() : null,
-                    embeddingModel: selectedEmbedding,
-                    similarityThreshold: similarityThreshold,
-                  ).then((notebook) {
+                  final saveFuture = isEditing
+                      ? widget.notebookRepository.updateNotebook(
+                          id: _currentNotebook!.id,
+                          name: nameController.text.trim(),
+                          llmProvider: selectedProvider.toLowerCase(),
+                          modelName: modelController.text.trim(),
+                          apiKey: selectedProvider == "Ollama" ? null : apiKeyController.text.trim(),
+                          baseUrl: selectedProvider == "Ollama" ? baseUrlController.text.trim() : null,
+                          similarityThreshold: similarityThreshold,
+                        )
+                      : widget.notebookRepository.createNotebook(
+                          name: nameController.text.trim(),
+                          llmProvider: selectedProvider.toLowerCase(),
+                          modelName: modelController.text.trim(),
+                          apiKey: selectedProvider == "Ollama" ? null : apiKeyController.text.trim(),
+                          baseUrl: selectedProvider == "Ollama" ? baseUrlController.text.trim() : null,
+                          embeddingModel: selectedEmbedding,
+                          similarityThreshold: similarityThreshold,
+                        );
+
+                  saveFuture.then((notebook) {
                     setState(() {
                       _currentNotebook = notebook;
                     });
-                    // Initialize BLoCs with the new notebook ID
-                    context.read<SourceBloc>().add(LoadSourcesEvent(sources: const [], activeSourceIds: const []));
-                    context.read<ChatBloc>().add(const LoadHistoryEvent([]));
-                    context.read<ArtifactBloc>().add(LoadArtifactsEvent(notebookId: notebook.id));
+                    if (!isEditing) {
+                      context.read<SourceBloc>().add(LoadSourcesEvent(sources: const [], activeSourceIds: const []));
+                      context.read<ChatBloc>().add(const LoadHistoryEvent([]));
+                      context.read<ArtifactBloc>().add(LoadArtifactsEvent(notebookId: notebook.id));
+                    }
                     Navigator.of(context).pop();
                   }).catchError((e) {
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -102,7 +135,7 @@ class _HomePageState extends State<HomePage> {
                   side: const BorderSide(color: Colors.white10),
                 ),
                 title: Text(
-                  _currentNotebook == null ? "Initialize PaperMind Workspace" : "Workspace Configuration",
+                  !isEditing ? "Initialize PaperMind Workspace" : "Workspace Configuration",
                   style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold),
                 ),
                 content: SizedBox(
@@ -154,12 +187,15 @@ class _HomePageState extends State<HomePage> {
                                             selectedProvider = val;
                                             if (val == "Ollama") {
                                               modelController.text = "qwen2.5:0.5b";
+                                              if (baseUrlController.text.trim().isEmpty) {
+                                                baseUrlController.text = "http://localhost:11434";
+                                              }
                                             } else if (val == "OpenAI") {
                                               modelController.text = "gpt-4o-mini";
                                             } else if (val == "Claude") {
                                               modelController.text = "claude-3-5-sonnet-20240620";
                                             } else if (val == "Gemini") {
-                                              modelController.text = "gemini-1.5-flash";
+                                              modelController.text = "gemini-2.5-flash";
                                             }
                                           });
                                         }
@@ -243,13 +279,15 @@ class _HomePageState extends State<HomePage> {
                                       items: ["all-MiniLM-L6-v2"].map((emb) {
                                         return DropdownMenuItem<String>(value: emb, child: Text(emb));
                                       }).toList(),
-                                      onChanged: (val) {
-                                        if (val != null) {
-                                          setDialogState(() {
-                                            selectedEmbedding = val;
-                                          });
-                                        }
-                                      },
+                                      onChanged: isEditing
+                                          ? null
+                                          : (val) {
+                                              if (val != null) {
+                                                setDialogState(() {
+                                                  selectedEmbedding = val;
+                                                });
+                                              }
+                                            },
                                     ),
                                   ),
                                 ],
@@ -294,7 +332,7 @@ class _HomePageState extends State<HomePage> {
                   ),
                 ),
                 actions: [
-                  if (_currentNotebook != null)
+                  if (isEditing)
                     TextButton(
                       child: const Text("Cancel", style: TextStyle(color: Colors.white54)),
                       onPressed: () => Navigator.of(context).pop(),
@@ -417,38 +455,54 @@ class _HomePageState extends State<HomePage> {
           
           // Current Notebook Settings Display
           if (_currentNotebook != null) ...[
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFF1E293B),
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: _showNotebookConfigDialog,
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.white10),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    _currentNotebook!.name,
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 14),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                hoverColor: Colors.white.withOpacity(0.05),
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1E293B).withOpacity(0.6),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.white10),
                   ),
-                  const SizedBox(height: 4),
-                  Row(
+                  child: Row(
                     children: [
-                      const Icon(Icons.dns, size: 12, color: Color(0xFF8B5CF6)),
-                      const SizedBox(width: 4),
                       Expanded(
-                        child: Text(
-                          "${_currentNotebook!.llmProvider.toUpperCase()} • ${_currentNotebook!.modelName}",
-                          style: const TextStyle(color: Colors.white54, fontSize: 11),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              _currentNotebook!.name,
+                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 14),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 4),
+                            Row(
+                              children: [
+                                const Icon(Icons.dns, size: 12, color: Color(0xFF8B5CF6)),
+                                const SizedBox(width: 4),
+                                Expanded(
+                                  child: Text(
+                                    "${_currentNotebook!.llmProvider.toUpperCase()} • ${_currentNotebook!.modelName}",
+                                    style: const TextStyle(color: Colors.white54, fontSize: 11),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
                       ),
+                      const SizedBox(width: 8),
+                      const Icon(Icons.edit, color: Colors.white30, size: 14),
                     ],
                   ),
-                ],
+                ),
               ),
             ),
           ] else ...[
@@ -519,7 +573,13 @@ class _HomePageState extends State<HomePage> {
                 : () async {
                     final result = await FilePicker.platform.pickFiles(
                       type: FileType.custom,
-                      allowedExtensions: ['pdf', 'txt', 'md', 'mp3', 'wav'],
+                      allowedExtensions: [
+                        'pdf', 'PDF',
+                        'txt', 'TXT',
+                        'md', 'MD',
+                        'mp3', 'MP3',
+                        'm4a', 'M4A'
+                      ],
                       withData: true,
                     );
                     if (result != null && result.files.isNotEmpty) {
