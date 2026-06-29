@@ -136,6 +136,20 @@ class SourceRepositoryImpl implements ISourceRepository {
       createdAt: DateTime.now(),
     );
   }
+
+  @override
+  Future<List<DocumentChunk>> getSourceChunks(String sourceId) async {
+    final url = Uri.parse("$baseUrl/api/v1/sources/$sourceId/chunks");
+    final response = await client.get(url);
+
+    if (response.statusCode != 200) {
+      throw Exception("Failed to load source chunks: ${response.body}");
+    }
+
+    final data = jsonDecode(response.body);
+    final chunksJson = data["chunks"] as List;
+    return chunksJson.map((json) => DocumentChunk.fromJson(json)).toList();
+  }
 }
 
 class ChatRepositoryImpl implements IChatRepository {

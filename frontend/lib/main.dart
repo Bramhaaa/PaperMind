@@ -76,7 +76,10 @@ class MyApp extends StatelessWidget {
           ),
           textTheme: GoogleFonts.outfitTextTheme(ThemeData.dark().textTheme),
         ),
-        home: HomePage(notebookRepository: notebookRepository),
+        home: HomePage(
+          notebookRepository: notebookRepository,
+          sourceRepository: sourceRepository,
+        ),
       ),
     );
   }

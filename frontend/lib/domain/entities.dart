@@ -135,3 +135,59 @@ class Artifact extends Equatable {
   @override
   List<Object?> get props => [id, notebookId, type, sourceHash, payload, createdAt];
 }
+
+class DocumentChunk extends Equatable {
+  final String id;
+  final int chunkIndex;
+  final int? pageNumber;
+  final int charStart;
+  final int charEnd;
+  final double? audioTimestampSeconds;
+  final String content;
+
+  const DocumentChunk({
+    required this.id,
+    required this.chunkIndex,
+    this.pageNumber,
+    required this.charStart,
+    required this.charEnd,
+    this.audioTimestampSeconds,
+    required this.content,
+  });
+
+  factory DocumentChunk.fromJson(Map<String, dynamic> json) {
+    return DocumentChunk(
+      id: json['id'] as String,
+      chunkIndex: json['chunk_index'] as int,
+      pageNumber: json['page_number'] as int?,
+      charStart: json['char_start'] as int,
+      charEnd: json['char_end'] as int,
+      audioTimestampSeconds: (json['audio_timestamp_seconds'] as num?)?.toDouble(),
+      content: json['content'] as String,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'chunk_index': chunkIndex,
+      'page_number': pageNumber,
+      'char_start': charStart,
+      'char_end': charEnd,
+      'audio_timestamp_seconds': audioTimestampSeconds,
+      'content': content,
+    };
+  }
+
+  @override
+  List<Object?> get props => [
+        id,
+        chunkIndex,
+        pageNumber,
+        charStart,
+        charEnd,
+        audioTimestampSeconds,
+        content,
+      ];
+}
+

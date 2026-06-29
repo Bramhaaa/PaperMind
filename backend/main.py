@@ -653,6 +653,69 @@ def generate_artifact(request: ArtifactGenerateRequest):
                 },
                 "required": ["summary"]
             }
+        elif request.artifact_type == "quiz":
+            prompt = (
+                "Based on the provided context, generate a set of educational multiple-choice quiz questions. "
+                "Each question must include a question string, an array of exactly 4 options (strings), "
+                "a correct_option integer (0 to 3 representing the index of the correct option), "
+                "and an explanation string explaining why that option is correct."
+            )
+            schema = {
+                "type": "object",
+                "properties": {
+                    "quiz": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "question": {"type": "string"},
+                                "options": {"type": "array", "items": {"type": "string"}, "minItems": 4, "maxItems": 4},
+                                "correct_option": {"type": "integer", "minimum": 0, "maximum": 3},
+                                "explanation": {"type": "string"}
+                            },
+                            "required": ["question", "options", "correct_option", "explanation"]
+                        }
+                    }
+                },
+                "required": ["quiz"]
+            }
+        elif request.artifact_type == "mindmap":
+            prompt = (
+                "Based on the provided context, construct a concept mind map graph. "
+                "Provide a list of nodes (representing key concepts/entities) and a list of edges (representing connections between concepts). "
+                "For nodes, provide a unique id, a label, and a brief description. "
+                "For edges, provide a source node id, a target node id, and a relationship description label."
+            )
+            schema = {
+                "type": "object",
+                "properties": {
+                    "nodes": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {"type": "string"},
+                                "label": {"type": "string"},
+                                "description": {"type": "string"}
+                            },
+                            "required": ["id", "label", "description"]
+                        }
+                    },
+                    "edges": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "source": {"type": "string"},
+                                "target": {"type": "string"},
+                                "relationship": {"type": "string"}
+                            },
+                            "required": ["source", "target", "relationship"]
+                        }
+                    }
+                },
+                "required": ["nodes", "edges"]
+            }
         else:
             raise HTTPException(status_code=400, detail=f"Unsupported artifact type: {request.artifact_type}")
 
@@ -726,3 +789,35 @@ def list_artifacts(id: str):
                 return {"artifacts": artifacts_list}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v1/sources/{id}/chunks")
+def get_source_chunks(id: str):
+    try:
+        with get_db_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT id, chunk_index, page_number, char_start, char_end, audio_timestamp_seconds, content 
+                    FROM document_chunks 
+                    WHERE source_id = %s 
+                    ORDER BY chunk_index ASC;
+                    """,
+                    (id,)
+                )
+                rows = cur.fetchall()
+                chunks = []
+                for r in rows:
+                    chunks.append({
+                        "id": str(r[0]),
+                        "chunk_index": r[1],
+                        "page_number": r[2],
+                        "char_start": r[3],
+                        "char_end": r[4],
+                        "audio_timestamp_seconds": r[5],
+                        "content": r[6]
+                    })
+                return {"chunks": chunks}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+

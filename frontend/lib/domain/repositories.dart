@@ -28,6 +28,8 @@ abstract class ISourceRepository {
     required String fileName,
     required List<int> fileBytes,
   });
+
+  Future<List<DocumentChunk>> getSourceChunks(String sourceId);
 }
 
 abstract class IChatRepository {
